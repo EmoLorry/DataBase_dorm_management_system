@@ -1,0 +1,6 @@
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `student_info_with_dorm` 
+AS select `s`.`Student_id` AS `Student_id`,`s`.`Stu_seat` AS `Stu_seat`,`s`.`Stu_College` AS `Stu_College`,
+`d`.`Dormitory_id` AS `Dormitory_id`,`d`.`Building_id` AS `Building_id`,`d`.`Electricity_balance` AS `Electricity_balance`,
+`b`.`Building_location` AS `Building_location`,`b`.`manager_id` AS `manager_id` 
+from 
+((`student` `s` join `dorm` `d` on((`s`.`Dormitory_id` = `d`.`Dormitory_id`))) join `dormitory_building` `b` on((`d`.`Building_id` = `b`.`Building_id`)))
