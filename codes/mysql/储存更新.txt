@@ -1,0 +1,105 @@
+DELIMITER //
+
+CREATE PROCEDURE change_dorm_proc(
+    IN new_dorm_id VARCHAR(20),
+    IN new_seat INT,
+    IN stu_id VARCHAR(20),
+    OUT success BOOLEAN
+)
+
+BEGIN
+    #原宿舍号
+    DECLARE old_dorm_id INT;
+		#原、新宿舍人数
+    DECLARE old_dorm_count INT;
+    DECLARE new_dorm_count INT;
+		#新宿舍容量
+		DECLARE new_dorm_cap INT;
+		#学生性别
+    DECLARE stu_gender CHAR(2);
+		#新宿舍性别
+		DECLARE dorm_gender CHAR(2);
+		#用于检查宿舍号是否存在和判断床位是否冲突的变量
+		DECLARE dorm_count INT;
+		DeCLARE is_seat_conflict INT;
+
+    -- 获取原宿舍信息
+    SELECT dormitory_id INTO old_dorm_id
+    FROM student
+    WHERE student_id = stu_id;
+
+    -- 获取原宿舍的当前人数
+    SELECT stu_count INTO old_dorm_count
+    FROM dorm
+    WHERE dormitory_id = old_dorm_id;
+
+    -- 获取新宿舍的当前人数和性别
+    SELECT stu_count, sex,Dormitory_resident 
+		INTO new_dorm_count, dorm_gender,new_dorm_cap
+    FROM dorm natural join dormitory_building
+    WHERE dormitory_id = new_dorm_id;
+
+    -- 开始事务
+    START TRANSACTION;
+
+    -- 1.检查宿舍号输入是否存在
+    SELECT COUNT(*) INTO dorm_count FROM dorm WHERE dormitory_id = new_dorm_id;
+    IF dorm_count = 0 THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '输入的宿舍不存在！';
+    END IF;
+
+    -- 2.检查新旧宿舍是否相同
+    IF old_dorm_id = new_dorm_id THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '新旧宿舍不能相同！';
+        ROLLBACK;
+    END IF;
+		
+    -- 3.检查新宿舍stu_count属性是否等于dormitory_count属性
+    IF new_dorm_cap = (SELECT stu_count FROM dorm WHERE dormitory_id = new_dorm_id) THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '新宿舍容量已满！';
+    END IF;
+		
+    -- 4.检查新宿舍是否与学生性别匹配
+    IF dorm_gender != (SELECT stu_sex FROM student WHERE student_id = stu_id) THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '请安排到性别一致的宿舍！';
+        ROLLBACK;
+    END IF;
+		
+    -- 5.检查床位号是否在新宿舍的容量范围内
+    IF new_seat < 1 OR new_seat > new_dorm_cap THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '新床位不合法！';
+        ROLLBACK;
+    END IF;
+
+    -- 6.检查提交的床位号是否与原有床位号冲突
+    SELECT COUNT(*) INTO is_seat_conflict 
+    FROM student 
+    WHERE dormitory_id = new_dorm_id AND stu_seat = new_seat;
+    
+    IF is_seat_conflict > 0 THEN
+        SET success = FALSE;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '输入床位与已安排床位冲突！';
+        ROLLBACK;
+    END IF;
+    -- 更新原宿舍的人数
+    UPDATE dorm
+    SET stu_count = old_dorm_count - 1
+    WHERE dormitory_id = old_dorm_id;
+    -- 更新学生的宿舍信息
+    UPDATE student
+    SET dormitory_id = new_dorm_id, stu_seat = new_seat
+    WHERE student_id = stu_id;
+    -- 更新新宿舍的人数
+    UPDATE dorm
+    SET stu_count = new_dorm_count + 1
+    WHERE dormitory_id = new_dorm_id;
+    SET success = TRUE;
+    -- 提交事务
+    COMMIT;
+END //
+DELIMITER ;

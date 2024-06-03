@@ -1,0 +1,19 @@
+DELIMITER //
+CREATE TRIGGER check_fix_limit
+BEFORE INSERT ON fix
+FOR EACH ROW
+BEGIN
+    DECLARE record_count INT;
+
+    -- 获取当前学生在过去24小时内提交的记录数量
+    SELECT COUNT(*) INTO record_count
+    FROM fix
+    WHERE apply_student_id = NEW.apply_student_id
+    AND timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR);
+
+    -- 如果记录数量大于等于3，则抛出错误
+    IF record_count >= 3 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = '您在过去24小时提交记录数量超过频率限制，请先耐心等待近期提交的报修结果！';
+    END IF;
+END//

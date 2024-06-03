@@ -1,0 +1,22 @@
+DELIMITER //
+
+-- 重新创建存储过程
+CREATE PROCEDURE delete_dorm_procedure(IN dorm_id VARCHAR(20))
+BEGIN
+    DECLARE v_building_id VARCHAR(20);
+    DECLARE v_dorm_count INT;
+    -- 获取被删除宿舍所在的宿舍楼ID及其宿舍数量
+    SELECT building_id, dorm_count INTO v_building_id, v_dorm_count FROM dormitory_building WHERE building_id = (SELECT building_id FROM dorm WHERE dormitory_id = dorm_id);
+    -- 开始事务
+    START TRANSACTION;
+    -- 更新宿舍所在宿舍楼的宿舍数量减1
+    UPDATE dormitory_building SET dorm_count = v_dorm_count - 1 WHERE building_id = v_building_id;
+    -- 更新宿舍所有学生的宿舍号与床位置为空
+    UPDATE student SET dormitory_id = NULL, stu_seat = NULL WHERE dormitory_id = dorm_id;
+    -- 删除宿舍
+    DELETE FROM dorm WHERE dormitory_id = dorm_id;
+    -- 提交事务
+    COMMIT;
+END //
+
+DELIMITER ;
